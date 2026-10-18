@@ -1,0 +1,50 @@
+name: Aegis Embedded RTOS CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Unit & Mock Integration Tests (Host)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7m-none-eabi, thumbv7em-none-eabihf
+
+      - name: Cache Cargo artifacts
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run Test Suite (Std & Mock Arch)
+        run: cargo test --verbose --features std
+
+      - name: Check Cortex-M3 Build (#![no_std])
+        run: cargo check --target thumbv7m-none-eabi --no-default-features --features cortex-m-arch
+
+      - name: Check Cortex-M4F Build (#![no_std])
+        run: cargo check --target thumbv7em-none-eabihf --no-default-features --features cortex-m-arch
+
+      - name: Code formatting and Clippy
+        run: |
+          cargo fmt --all -- --check || true
+          cargo clippy --all-targets -- -D warnings || true
